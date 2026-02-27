@@ -1,0 +1,5 @@
+{
+  "name": "FinSense AI: Pocket CFO",
+  "description": "A conversational financial operating system for small business owners to manage cash flow, track profit, and get proactive insights.",
+  "requestFramePermissions": ["microphone"]
+}
