@@ -7,7 +7,8 @@ export async function processFinancialInput(
   input: string, 
   language: string = "English", 
   history: Message[] = [],
-  businessContext: string = "Small Business"
+  businessContext: string = "Small Business",
+  inventoryContext: string = ""
 ): Promise<{
   status: 'SUCCESS' | 'NEEDS_CLARIFICATION' | 'AMBIGUOUS';
   transactions: Transaction[];
@@ -43,11 +44,16 @@ export async function processFinancialInput(
     15. CAPITAL INJECTION: Categorize as 'capital' (e.g., "Brother gave 20000").
     16. LOANS: Categorize as 'loan' (e.g., "Took loan from bank").
     17. REFUNDS: Categorize as 'refund' (e.g., "Got refund from supplier").
-    18. UNIT PRICE: If "Sold 10 at 500", clarify if 500 is total or each.
+    18. UNIT PRICE AMBIGUITY: If user says "Sold 10 for 500", you MUST determine if 500 is 'total' or 'per unit'. If unclear, ask "Is ₹500 the total price or price for each item?".
     19. MATH EXTRAPOLATION: If user says "Paid 50000 for 45 out of 60 items", calculate the unit price (50000/45), then the total amount (unit_price * 60), and set amount_paid: 50000. Do NOT ask for the total if it can be mathematically derived from a rate.
-    20. FRAUD/VALIDATION: Reject negative amounts or impossible logic.
-    21. CASH VS REVENUE: Ensure amount_paid correctly reflects cash flow, while amount reflects revenue/expense.
-    22. COUNTERPARTY: If user mentions a person or company (e.g., "Sold to Rahul", "Bought from Amazon"), extract their name as 'counterparty' and any contact info (phone/email) as 'counterparty_contact'.
+    20. CALCULATOR LOGIC: If user provides a calculation like "10 items at 50 each plus 5 items at 100 each", extract two separate transactions or one combined transaction with the correct total (1000).
+    21. FRAUD/VALIDATION: Reject negative amounts or impossible logic.
+    22. CASH VS REVENUE: Ensure amount_paid correctly reflects cash flow, while amount reflects revenue/expense.
+    23. COUNTERPARTY: If user mentions a person or company (e.g., "Sold to Rahul", "Bought from Amazon"), extract their name as 'counterparty' and any contact info (phone/email) as 'counterparty_contact'.
+    24. INVENTORY CONTEXT: Use the provided inventory context (if any) to validate item names and categories.
+    
+    Inventory Context:
+    ${inventoryContext}
 
     History:
     ${recentHistory}

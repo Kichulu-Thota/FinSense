@@ -154,6 +154,31 @@ async function startServer() {
     }
   });
 
+  app.get("/api/inventory", (req, res) => {
+    try {
+      const inventory = db.prepare(`
+        SELECT 
+          item,
+          category,
+          SUM(CASE 
+            WHEN type IN ('expense', 'capital', 'loan') THEN quantity 
+            WHEN type IN ('revenue') THEN -quantity 
+            ELSE 0 
+          END) as current_stock,
+          MAX(unit_price) as last_price,
+          MAX(date) as last_updated
+        FROM transactions
+        WHERE status = 'confirmed' AND is_personal = 0
+        GROUP BY item
+        HAVING current_stock != 0
+        ORDER BY current_stock ASC
+      `).all();
+      res.json(inventory);
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
   app.post("/api/reconcile", (req, res) => {
     try {
       const { physical_balance, system_balance, notes, date } = req.body;

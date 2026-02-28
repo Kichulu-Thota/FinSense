@@ -24,10 +24,12 @@ import {
   MessageCircle,
   Receipt,
   Scale,
-  HelpCircle
+  HelpCircle,
+  Package,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Transaction, Stats, Message } from './types';
+import { Transaction, Stats, Message, InventoryItem } from './types';
 import { processFinancialInput, generateFinancialInsight, generateSpeech } from './services/ai';
 
 const LANGUAGES = [
@@ -50,12 +52,14 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [activeTab, setActiveTab] = useState<'chat' | 'ledger' | 'dashboard' | 'reconcile'>('chat');
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'chat' | 'ledger' | 'dashboard' | 'reconcile' | 'inventory'>('chat');
   const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
   const [isListening, setIsListening] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
   const [reconData, setReconData] = useState({ physical: '', notes: '' });
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -130,9 +134,10 @@ export default function App() {
 
   const fetchData = async () => {
     try {
-      const [tRes, sRes] = await Promise.all([
+      const [tRes, sRes, iRes] = await Promise.all([
         fetch('/api/transactions'),
-        fetch('/api/stats')
+        fetch('/api/stats'),
+        fetch('/api/inventory')
       ]);
       
       if (tRes.ok) {
@@ -142,6 +147,16 @@ export default function App() {
         } else {
           console.error("Transactions data is not an array:", tData);
           setTransactions([]);
+        }
+      }
+
+      if (iRes.ok) {
+        const iData = await iRes.json();
+        if (Array.isArray(iData)) {
+          setInventory(iData);
+        } else {
+          console.error("Inventory data is not an array:", iData);
+          setInventory([]);
         }
       }
 
@@ -211,7 +226,8 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const result = await processFinancialInput(input, selectedLang.name, messages);
+      const inventoryContext = inventory.map(i => `${i.item} (${i.category})`).join(', ');
+      const result = await processFinancialInput(input, selectedLang.name, messages, "Small Business", inventoryContext);
       
       if (result.status === 'SUCCESS') {
         // Save transactions to DB
@@ -348,6 +364,7 @@ export default function App() {
               <NavItem id="dashboard" icon={LayoutDashboard} label="Dashboard" />
               <NavItem id="chat" icon={MessageCircle} label="AI Assistant" />
               <NavItem id="ledger" icon={History} label="Ledger" />
+              <NavItem id="inventory" icon={Package} label="Inventory" />
               <NavItem id="reconcile" icon={Scale} label="Reconciliation" />
             </nav>
 
@@ -688,6 +705,66 @@ export default function App() {
               </div>
             )}
 
+            {activeTab === 'inventory' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Package className="text-gray-400 w-5 h-5" />
+                      <h2 className="font-bold text-gray-800">Inventory Management</h2>
+                    </div>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                      {inventory.length} Items Tracked
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50/50">
+                          <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item Name</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Category</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Current Stock</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Last Price</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Last Updated</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {inventory.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-6 py-4 text-sm font-bold text-gray-800">{item.item}</td>
+                            <td className="px-6 py-4">
+                              <span className="px-2 py-1 bg-gray-100 text-gray-600 text-[10px] font-bold uppercase rounded-md tracking-tighter">
+                                {item.category}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`text-sm font-black ${item.current_stock < 10 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                {item.current_stock}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-600">₹{item.last_price.toLocaleString()}</td>
+                            <td className="px-6 py-4 text-xs text-gray-400">{item.last_updated}</td>
+                            <td className="px-6 py-4">
+                              {item.current_stock < 10 ? (
+                                <span className="flex items-center gap-1 text-rose-600 text-[10px] font-bold uppercase">
+                                  <AlertCircle size={12} /> Low Stock
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-emerald-600 text-[10px] font-bold uppercase">
+                                  <CheckCircle2 size={12} /> Healthy
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'ledger' && (
               <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="p-6 border-b border-gray-100 flex items-center justify-between">
@@ -767,12 +844,20 @@ export default function App() {
                             {t.type === 'revenue' || t.type === 'capital' || t.type === 'loan' || t.type === 'refund' ? '+' : '-'}₹{t.amount.toLocaleString()}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <button 
-                              onClick={() => t.id && deleteTransaction(t.id)}
-                              className="p-2 text-gray-300 hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => setSelectedTransaction(t)}
+                                className="p-2 text-gray-300 hover:text-blue-600 transition-colors"
+                              >
+                                <Info size={14} />
+                              </button>
+                              <button 
+                                onClick={() => t.id && deleteTransaction(t.id)}
+                                className="p-2 text-gray-300 hover:text-rose-600 transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -804,10 +889,111 @@ export default function App() {
         <button onClick={() => setActiveTab('ledger')} className={`p-2 rounded-xl transition-all ${activeTab === 'ledger' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-400'}`}>
           <History size={24} />
         </button>
+        <button onClick={() => setActiveTab('inventory')} className={`p-2 rounded-xl transition-all ${activeTab === 'inventory' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-400'}`}>
+          <Package size={24} />
+        </button>
         <button onClick={() => setActiveTab('reconcile')} className={`p-2 rounded-xl transition-all ${activeTab === 'reconcile' ? 'text-emerald-600 bg-emerald-50' : 'text-gray-400'}`}>
           <Scale size={24} />
         </button>
       </nav>
+      {/* Transaction Details Modal */}
+      <AnimatePresence>
+        {selectedTransaction && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedTransaction(null)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-lg bg-white rounded-[32px] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-3 rounded-2xl ${
+                      selectedTransaction.type === 'revenue' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                    }`}>
+                      <Receipt size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-gray-900">Transaction Details</h3>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{selectedTransaction.date}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedTransaction(null)}
+                    className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Item / Service</p>
+                      <p className="text-sm font-bold text-gray-800">{selectedTransaction.item}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Category</p>
+                      <p className="text-sm font-bold text-gray-800">{selectedTransaction.category}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Amount</p>
+                      <p className="text-lg font-black text-gray-900">₹{selectedTransaction.amount.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status</p>
+                      <span className={`inline-block px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${
+                        selectedTransaction.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                      }`}>
+                        {selectedTransaction.payment_status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {(selectedTransaction.counterparty || selectedTransaction.counterparty_contact) && (
+                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Counterparty Info</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-gray-200">
+                          <User size={16} className="text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-800">{selectedTransaction.counterparty || 'Unknown'}</p>
+                          <p className="text-xs text-gray-500">{selectedTransaction.counterparty_contact || 'No contact details'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedTransaction.raw_text && (
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Original Message</p>
+                      <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100 italic text-sm text-emerald-900/70">
+                        "{selectedTransaction.raw_text}"
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={() => setSelectedTransaction(null)}
+                  className="w-full mt-8 bg-gray-900 text-white font-bold py-4 rounded-2xl hover:bg-black transition-colors"
+                >
+                  Close Details
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

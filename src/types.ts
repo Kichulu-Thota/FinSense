@@ -38,6 +38,14 @@ export interface Reconciliation {
   notes?: string;
 }
 
+export interface InventoryItem {
+  item: string;
+  category: string;
+  current_stock: number;
+  last_price: number;
+  last_updated: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
