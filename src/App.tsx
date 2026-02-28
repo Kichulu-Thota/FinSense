@@ -449,14 +449,42 @@ export default function App() {
                       <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Accounts Receivable</h4>
                       <span className="text-[10px] px-2 py-1 bg-emerald-50 text-emerald-600 rounded-full">Owed to you</span>
                     </div>
-                    <p className="text-2xl font-black text-gray-900">₹{stats?.accounts_receivable?.toLocaleString() || '0'}</p>
+                    <p className="text-2xl font-black text-gray-900 mb-4">₹{stats?.accounts_receivable?.toLocaleString() || '0'}</p>
+                    
+                    {transactions.filter(t => t.type === 'revenue' && t.payment_status !== 'paid' && t.status === 'confirmed').length > 0 && (
+                      <div className="space-y-2 border-t pt-3">
+                        {transactions.filter(t => t.type === 'revenue' && t.payment_status !== 'paid' && t.status === 'confirmed').slice(0, 3).map(t => (
+                          <div key={t.id} className="flex justify-between items-center text-[10px]">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-gray-700">{t.counterparty || 'Unknown Customer'}</span>
+                              <span className="text-gray-400">{t.item}</span>
+                            </div>
+                            <span className="font-black text-rose-600">₹{(t.amount - t.amount_paid).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Accounts Payable</h4>
                       <span className="text-[10px] px-2 py-1 bg-rose-50 text-rose-600 rounded-full">You owe</span>
                     </div>
-                    <p className="text-2xl font-black text-gray-900">₹{stats?.accounts_payable?.toLocaleString() || '0'}</p>
+                    <p className="text-2xl font-black text-gray-900 mb-4">₹{stats?.accounts_payable?.toLocaleString() || '0'}</p>
+
+                    {transactions.filter(t => t.type === 'expense' && t.payment_status !== 'paid' && t.status === 'confirmed').length > 0 && (
+                      <div className="space-y-2 border-t pt-3">
+                        {transactions.filter(t => t.type === 'expense' && t.payment_status !== 'paid' && t.status === 'confirmed').slice(0, 3).map(t => (
+                          <div key={t.id} className="flex justify-between items-center text-[10px]">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-gray-700">{t.counterparty || 'Unknown Supplier'}</span>
+                              <span className="text-gray-400">{t.item}</span>
+                            </div>
+                            <span className="font-black text-rose-600">₹{(t.amount - t.amount_paid).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -691,6 +719,12 @@ export default function App() {
                           <td className="px-6 py-4">
                             <div className="flex flex-col">
                               <span className="text-sm font-bold text-gray-800">{t.item}</span>
+                              {t.counterparty && (
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded w-fit mt-0.5">
+                                  {t.type === 'revenue' ? 'Customer' : 'Supplier'}: {t.counterparty}
+                                  {t.counterparty_contact && ` (${t.counterparty_contact})`}
+                                </span>
+                              )}
                               {t.unit_price && (
                                 <span className="text-[10px] text-gray-400">₹{t.unit_price.toLocaleString()} / unit</span>
                               )}

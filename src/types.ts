@@ -10,6 +10,8 @@ export interface Transaction {
   date: string;
   payment_status: 'paid' | 'credit' | 'partial';
   amount_paid: number;
+  counterparty?: string;
+  counterparty_contact?: string;
   is_personal: boolean;
   raw_text?: string;
   status: 'confirmed' | 'deleted' | 'voided';

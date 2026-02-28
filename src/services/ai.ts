@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Type, Modality, ThinkingLevel } from "@google/genai";
 import { Transaction, Message } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
@@ -7,7 +7,7 @@ export async function processFinancialInput(
   input: string, 
   language: string = "English", 
   history: Message[] = [],
-  businessContext: string = "Bakery"
+  businessContext: string = "Small Business"
 ): Promise<{
   status: 'SUCCESS' | 'NEEDS_CLARIFICATION' | 'AMBIGUOUS';
   transactions: Transaction[];
@@ -44,8 +44,10 @@ export async function processFinancialInput(
     16. LOANS: Categorize as 'loan' (e.g., "Took loan from bank").
     17. REFUNDS: Categorize as 'refund' (e.g., "Got refund from supplier").
     18. UNIT PRICE: If "Sold 10 at 500", clarify if 500 is total or each.
-    19. FRAUD/VALIDATION: Reject negative amounts or impossible logic.
-    20. CASH VS REVENUE: Ensure amount_paid correctly reflects cash flow, while amount reflects revenue/expense.
+    19. MATH EXTRAPOLATION: If user says "Paid 50000 for 45 out of 60 items", calculate the unit price (50000/45), then the total amount (unit_price * 60), and set amount_paid: 50000. Do NOT ask for the total if it can be mathematically derived from a rate.
+    20. FRAUD/VALIDATION: Reject negative amounts or impossible logic.
+    21. CASH VS REVENUE: Ensure amount_paid correctly reflects cash flow, while amount reflects revenue/expense.
+    22. COUNTERPARTY: If user mentions a person or company (e.g., "Sold to Rahul", "Bought from Amazon"), extract their name as 'counterparty' and any contact info (phone/email) as 'counterparty_contact'.
 
     History:
     ${recentHistory}
@@ -57,6 +59,7 @@ export async function processFinancialInput(
     model,
     contents: prompt,
     config: {
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -75,6 +78,8 @@ export async function processFinancialInput(
                 unit_price: { type: Type.NUMBER },
                 payment_status: { type: Type.STRING, enum: ["paid", "credit", "partial"] },
                 amount_paid: { type: Type.NUMBER },
+                counterparty: { type: Type.STRING },
+                counterparty_contact: { type: Type.STRING },
                 date: { type: Type.STRING },
                 is_personal: { type: Type.BOOLEAN }
               },
@@ -130,6 +135,7 @@ export async function generateFinancialInsight(
     model,
     contents: prompt,
     config: {
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,

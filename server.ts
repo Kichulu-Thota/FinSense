@@ -22,6 +22,8 @@ db.exec(`
     date TEXT NOT NULL,
     payment_status TEXT DEFAULT 'paid', -- 'paid', 'credit', 'partial'
     amount_paid REAL DEFAULT 0,
+    counterparty TEXT,
+    counterparty_contact TEXT,
     is_personal INTEGER DEFAULT 0,
     raw_text TEXT,
     status TEXT DEFAULT 'confirmed', -- 'confirmed', 'deleted', 'voided'
@@ -57,6 +59,14 @@ db.exec(`
   );
 `);
 
+// Migration: Add counterparty columns if they don't exist
+try {
+  db.prepare("ALTER TABLE transactions ADD COLUMN counterparty TEXT").run();
+} catch (e) {}
+try {
+  db.prepare("ALTER TABLE transactions ADD COLUMN counterparty_contact TEXT").run();
+} catch (e) {}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -75,17 +85,18 @@ async function startServer() {
 
   app.post("/api/transactions", (req, res) => {
     try {
-      const { type, category, item, amount, quantity, unit_price, currency, date, is_personal, raw_text, payment_status, amount_paid } = req.body;
+      const { type, category, item, amount, quantity, unit_price, currency, date, is_personal, raw_text, payment_status, amount_paid, counterparty, counterparty_contact } = req.body;
       
       const insert = db.prepare(`
-        INSERT INTO transactions (type, category, item, amount, quantity, unit_price, currency, date, is_personal, raw_text, payment_status, amount_paid)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO transactions (type, category, item, amount, quantity, unit_price, currency, date, is_personal, raw_text, payment_status, amount_paid, counterparty, counterparty_contact)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       const info = insert.run(
         type, category, item, amount, quantity || 1, unit_price || amount, 
         currency || 'USD', date, is_personal ? 1 : 0, raw_text, 
-        payment_status || 'paid', amount_paid || (payment_status === 'paid' ? amount : 0)
+        payment_status || 'paid', amount_paid || (payment_status === 'paid' ? amount : 0),
+        counterparty || null, counterparty_contact || null
       );
 
       db.prepare("INSERT INTO audit_logs (transaction_id, action, new_value) VALUES (?, ?, ?)")
